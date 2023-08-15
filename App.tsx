@@ -1,118 +1,147 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from "react";
 import logo from './logo.svg';
 import './App.css';
+/*
 import {
   Scrypt,
   ScryptProvider,
   SensiletSigner,
   ContractCalledEvent,
   ByteString,
-  hash160,
-  PubKey,
-  toHex,
   findSig,
   SignatureResponse
 } from "scrypt-ts";
-import axios  from 'axios';
-import { Voting } from './contracts/voting';
-import artifact from '../artifacts/voting.json';
 
-Voting.loadArtifact(artifact);
+import { scholarship } from "./contracts/voting";
+*/
 
-// `npm run deploycontract` to get deployment transaction id
-const contract_id = {
-  /** The deployment transaction id */
-  txId: "0871080448710bb3962ca9eb001d8cc3b5d652fa6f17c4779c5d4ab87c6019a4",
-  /** The output index */
-  outputIndex: 0,
-};
+interface User {
+  username: string;
+  password: string;
+  name: string;
+}
 
-interface ApiResponse {
+const users: User[] = [
+  { username: 'Rachel_Williams', password: '123456', name: 'User One' },
+  { username: 'user2', password: 'password2', name: 'User Two' }
+];
+
+interface GpaResponse {
   GPA: number;
-  DigestGPA:ByteString,
-  DigestPK:ByteString,
-            
+  /*
+  digest: ByteString
   Signatures:{
     Rabin:{
-      Sig_S:bigint,
-      Sig_U:ByteString
-    },
-    RabinPK:{
-      Sig_S:bigint,
-      Sig_U:ByteString
+        PubKey: bigint,
+        Sig_S:ByteString,
+        Sig_U:ByteString
+      }
     }
-  }
-
+    */
 }
 
-function App() {
-  const [ScholarshipContract, setContract] = useState<scholarship>();
-  const signerRef = useRef<SensiletSigner>();
-  const [error, setError] = React.useState("");
-  const [GPA, setGpa] = useState<number | null>(null);
-  const [msgGPA, setMsgGPA] = useState<ByteString | null>('null');
-  const [msgPK, setMsgPK] = useState<ByteString | null>('null');
-  const [sigGPA, setSigGPA] = useState<ApiResponse['Signatures']['Rabin'] | null>(null);
-  const [sigPK, setSigPK] = useState<ApiResponse['Signatures']['RabinPK'] | null>(null);
-  const [username, setUsername] = useState("");
-  
-  async function Payment(e:any){
-    const singer = signerRef.current as SensiletSigner;
-    const url = `http://16.171.36.57:5000/api/gpa?name=${username}`;
-    //const url = `http://localhost:5000/api/gpa?name=${username}`;
-    axios.get<ApiResponse>(url)
-    .then(response => {
-      const data = response.data;
-      // 在这里使用数据
-      setGpa(data.GPA);
-      setMsgGPA(data.DigestGPA);
-      setMsgPK(data.DigestPK);
-      setSigGPA(data.Signatures.Rabin);
-      setSigPK(data.Signatures.RabinPK);
-      const fetchedGPA = data.GPA;
-      // Check if the fetched GPA is greater than 3.5
-      if (fetchedGPA > 3.5) {
-        window.alert("Congratulations! You have a GPA above 3.5. You will get a scholarship!");
-      } else {
-        window.alert("We regret to inform you that your GPA is below 3.5. Keeping punching!");
-      }
-    })
-    .catch(error => {
-      // 处理错误
-      console.error(error);
-     });
-    if(ScholarshipContract && singer) {
-      const {isAuthenticated, error} = await singer.requestAuth();
-      if(!isAuthenticated){
-        throw new Error(error);
-      }
-      const GPAmsg = msgGPA;
-      const PKmag = msgPK;
-      const sigsGPA = sigGPA?.Sig_S;
-      const siguGPA = sigGPA?.Sig_U;
-      const sigsPK = sigPK?.Sig_S;
-      const siguPK = sigPK?.Sig_U;
-      await ScholarshipContract.connect(singer);
-      ScholarshipContract.methods.unlock(GPAmsg,PKmag,{sigsGPA,siguGPA},{sigsPK,siguPK})
-      
+const LoginPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleLogin = () => {
+    const user = users.find((u) => u.username === username && u.password === password);
+
+    if (user) {
+      onLogin(user);
+    } else {
+      alert('Invalid username or password. Please try again.');
     }
-  }
+  };
+
   return (
-    <div className="center">
-      <h1>Welcome to the Scholarship Application</h1>
-      <div>
-        <label htmlFor="username">Enter Username: </label>
-        <input
-          type="text"
-          id="username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-        />
-        <button onClick={Payment}>Make A Query</button>
-      </div>
-      {error && <p>{error}</p>}
+    <div>
+      <h1>Login Page</h1>
+      <input
+        type="text"
+        placeholder="Username"
+        value={username}
+        onChange={(e) => setUsername(e.target.value)}
+      />
+      <input
+        type="password"
+        placeholder="Password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+      />
+      <button onClick={handleLogin}>Login</button>
     </div>
   );
-}
+};
+
+const GpaPage: React.FC<{ username: string; onLogout: () => void }> = ({
+  username,
+  onLogout,
+}) => {
+  const [GPA, setGpa] = useState<number | null>(null);
+
+  useEffect(() => {
+    // Replace 'API_ENDPOINT' with the actual API endpoint that provides GPA data based on the username.
+    const url = `http://16.171.36.57:5000/api/gpa?name=${username}`;
+    //const url = `http://localhost:5000/api/gpa?name=${username}`;
+
+    fetch(url)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error('Network response was not ok.');
+        }
+        return response.json();
+      })
+      .then((data: GpaResponse) => setGpa(data.GPA))
+      .catch((error) => {
+        console.error('Error fetching GPA:', error);
+        setGpa(null); // Set GPA to null if there's an error or the response is not ok.
+      });
+  }, [username]);
+
+  return (
+    <div>
+      <h1>GPA Page</h1>
+      {GPA !== null ? (
+        <div>
+          <p>Your GPA: {GPA}</p>
+          {GPA >= 3.5 ? (
+            <p>Congratulations! You've earned a scholarship!</p>
+          ) : (
+            <p>We're sorry, you didn't qualify for a scholarship.</p>
+          )}
+        </div>
+      ) : (
+        <p>Loading GPA...</p>
+      )}
+      <button onClick={onLogout}>Logout</button>
+    </div>
+  );
+};
+
+const App: React.FC = () => {
+  const [user, setUser] = useState<User | null>(null);
+
+  const handleLogin = (loggedInUser: User) => {
+    setUser(loggedInUser);
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+  };
+
+  return (
+    <div>
+      {user ? (
+        <GpaPage username={user.username} onLogout={handleLogout} />
+      ) : (
+        <LoginPage onLogin={handleLogin} />
+      )}
+    </div>
+  );
+};
 
 export default App;
+
+
+
